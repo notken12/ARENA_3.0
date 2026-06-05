@@ -30,16 +30,27 @@ done
 
 echo "=== Setup: platform=$PLATFORM, clone_llm_context=$CLONE_LLM_CONTEXT ==="
 
-# --- Install Miniconda ---
-echo "=== Installing Miniconda ==="
-mkdir -p ~/miniconda3
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
-bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-rm -rf ~/miniconda3/miniconda.sh
-~/miniconda3/bin/conda init bash
+# --- Set Miniconda path based on platform ---
+if [[ "$PLATFORM" == "runpod" ]]; then
+    MINICONDA_DIR="/workspace/miniconda3"
+else
+    MINICONDA_DIR="$HOME/miniconda3"
+fi
+
+# --- Install Miniconda (skip if already present) ---
+if [[ -d "$MINICONDA_DIR/bin" && -f "$MINICONDA_DIR/bin/conda" ]]; then
+    echo "=== Miniconda already present at $MINICONDA_DIR, skipping install ==="
+else
+    echo "=== Installing Miniconda to $MINICONDA_DIR ==="
+    mkdir -p "$MINICONDA_DIR"
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O "$MINICONDA_DIR/miniconda.sh"
+    bash "$MINICONDA_DIR/miniconda.sh" -b -u -p "$MINICONDA_DIR"
+    rm -f "$MINICONDA_DIR/miniconda.sh"
+    "$MINICONDA_DIR/bin/conda" init bash
+fi
 
 # Source conda.sh to get conda activate working in this script
-source ~/miniconda3/etc/profile.d/conda.sh
+source "$MINICONDA_DIR/etc/profile.d/conda.sh"
 
 # --- Accept conda TOS ---
 echo "=== Accepting Conda TOS ==="
@@ -88,7 +99,7 @@ HOME_DIR="$HOME"
 mkdir -p "$HOME_DIR/.vscode"
 cat > "$HOME_DIR/.vscode/settings.json" << EOF
 {
-    "python.defaultInterpreterPath": "$HOME_DIR/miniconda3/envs/$CONDA_ENV/bin/python",
+    "python.defaultInterpreterPath": "$MINICONDA_DIR/envs/$CONDA_ENV/bin/python",
     "python.analysis.extraPaths": [
         "$HOME_DIR/$PRIMARY_REPO_DIR/chapter0_fundamentals/exercises",
         "$HOME_DIR/$PRIMARY_REPO_DIR/chapter1_transformer_interp/exercises",

@@ -22,19 +22,9 @@ def visualise_output(
     output = output.detach().cpu().numpy()
     grid_latent = grid_latent.detach().cpu().numpy()
     output_truncated = np.clip((output * 0.3081) + 0.1307, 0, 1)
-    channels = output.shape[1]
-    if channels == 1:
-        output_single_image = einops.rearrange(
-            output_truncated, "(dim1 dim2) 1 height width -> (dim1 height) (dim2 width)", dim1=n_points
-        )
-        imshow_kwargs = {"color_continuous_scale": "greys_r"}
-    elif channels == 3:
-        output_single_image = einops.rearrange(
-            output_truncated, "(dim1 dim2) c height width -> (dim1 height) (dim2 width) c", dim1=n_points
-        )
-        imshow_kwargs = {}
-    else:
-        raise ValueError(f"Expected 1 or 3 channels, got {channels}")
+    output_single_image = einops.rearrange(
+        output_truncated, "(dim1 dim2) 1 height width -> (dim1 height) (dim2 width)", dim1=n_points
+    )
 
     # Display the results
     x_max = grid_latent.max().item()
@@ -46,7 +36,7 @@ def visualise_output(
     )
     # FILTERS: ~
     if filename is not None:
-        px.imshow(output_single_image, title=title, **imshow_kwargs).update_layout(
+        px.imshow(output_single_image, color_continuous_scale="greys_r", title=title).update_layout(
             xaxis=dict(title_text="dim1", **tickargs),
             yaxis=dict(title_text="dim2", **tickargs),
             width=40 * (n_points + 5),
@@ -54,7 +44,7 @@ def visualise_output(
         ).write_html(filename)
         return
     # END FILTERS
-    px.imshow(output_single_image, title=title, **imshow_kwargs).update_layout(
+    px.imshow(output_single_image, color_continuous_scale="greys_r", title=title).update_layout(
         xaxis=dict(title_text="dim1", **tickargs),
         yaxis=dict(title_text="dim2", **tickargs),
         width=40 * (n_points + 5),

@@ -11,42 +11,57 @@
 # =============================================================================
 
 # Defaults
-PLATFORM="runpod"
 CONDA_ENV="arena-env"
 PYTHON_VERSION="3.11"
 CLONE_LLM_CONTEXT=true
+PLATFORM=""
 
 # Parse args
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        --platform)
-            PLATFORM="$2"
-            shift 2
-            ;;
-        --no-llm-context) CLONE_LLM_CONTEXT=false; shift ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
-    esac
+  case $1 in
+  --platform)
+    PLATFORM="$2"
+    shift 2
+    ;;
+  --no-llm-context)
+    CLONE_LLM_CONTEXT=false
+    shift
+    ;;
+  *)
+    echo "Unknown option: $1"
+    exit 1
+    ;;
+  esac
 done
+
+# Auto-detect platform if not specified
+if [[ -z "$PLATFORM" ]]; then
+  if [[ -d "/workspace" ]]; then
+    PLATFORM="runpod"
+  else
+    PLATFORM="local"
+  fi
+fi
 
 echo "=== Setup: platform=$PLATFORM, clone_llm_context=$CLONE_LLM_CONTEXT ==="
 
 # --- Set Miniconda path based on platform ---
 if [[ "$PLATFORM" == "runpod" ]]; then
-    MINICONDA_DIR="/workspace/miniconda3"
+  MINICONDA_DIR="/workspace/miniconda3"
 else
-    MINICONDA_DIR="$HOME/miniconda3"
+  MINICONDA_DIR="$HOME/miniconda3"
 fi
 
 # --- Install Miniconda (skip if already present) ---
 if [[ -d "$MINICONDA_DIR/bin" && -f "$MINICONDA_DIR/bin/conda" ]]; then
-    echo "=== Miniconda already present at $MINICONDA_DIR, skipping install ==="
+  echo "=== Miniconda already present at $MINICONDA_DIR, skipping install ==="
 else
-    echo "=== Installing Miniconda to $MINICONDA_DIR ==="
-    mkdir -p "$MINICONDA_DIR"
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O "$MINICONDA_DIR/miniconda.sh"
-    bash "$MINICONDA_DIR/miniconda.sh" -b -u -p "$MINICONDA_DIR"
-    rm -f "$MINICONDA_DIR/miniconda.sh"
-    "$MINICONDA_DIR/bin/conda" init bash
+  echo "=== Installing Miniconda to $MINICONDA_DIR ==="
+  mkdir -p "$MINICONDA_DIR"
+  wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O "$MINICONDA_DIR/miniconda.sh"
+  bash "$MINICONDA_DIR/miniconda.sh" -b -u -p "$MINICONDA_DIR"
+  rm -f "$MINICONDA_DIR/miniconda.sh"
+  "$MINICONDA_DIR/bin/conda" init bash
 fi
 
 # Source conda.sh to get conda activate working in this script
@@ -66,17 +81,17 @@ echo "=== Active Python: $(which python) ==="
 # --- Install git ---
 echo "=== Installing system packages ==="
 if [[ "$PLATFORM" == "runpod" ]]; then
-    apt update && apt install -y git curl
+  apt update && apt install -y git curl
 elif [[ "$PLATFORM" == "vastai" ]]; then
-    sudo apt update && sudo apt install -y git
+  sudo apt update && sudo apt install -y git
 fi
 
 # Maybe clone the repo which gives you extra context for LLMs (to help with exercises)
 if $CLONE_LLM_CONTEXT; then
-    REPO="callummcdougall/arena-llm-context"
-    BRANCH="main"
-    echo "=== Cloning $REPO (branch: $BRANCH) ==="
-    git clone -b "$BRANCH" "https://github.com/${REPO}.git"
+  REPO="callummcdougall/arena-llm-context"
+  BRANCH="main"
+  echo "=== Cloning $REPO (branch: $BRANCH) ==="
+  git clone -b "$BRANCH" "https://github.com/${REPO}.git"
 fi
 
 # # --- Git config ---
@@ -97,7 +112,7 @@ echo "=== Configuring VS Code workspace settings ==="
 
 HOME_DIR="$HOME"
 mkdir -p "$HOME_DIR/.vscode"
-cat > "$HOME_DIR/.vscode/settings.json" << EOF
+cat >"$HOME_DIR/.vscode/settings.json" <<EOF
 {
     "python.defaultInterpreterPath": "$MINICONDA_DIR/envs/$CONDA_ENV/bin/python",
     "python.analysis.extraPaths": [

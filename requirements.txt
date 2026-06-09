@@ -82,3 +82,4 @@ anthropic>=0.42.0
 instructor
 
 hf_transfer
+datasets

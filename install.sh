@@ -14,7 +14,7 @@
 PLATFORM="runpod"
 CONDA_ENV="arena-env"
 PYTHON_VERSION="3.11"
-CLONE_LLM_CONTEXT=true
+CLONE_LLM_CONTEXT=false
 
 # Parse args
 while [[ $# -gt 0 ]]; do

@@ -4,7 +4,7 @@ from collections import deque
 import cv2
 import gymnasium as gym
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 
 cv2.ocl.setUseOpenCL(False)
 
@@ -171,7 +171,10 @@ class FrameStack(gym.Wrapper):
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
         self.observation_space = spaces.Box(
-            low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype
+            low=0,
+            high=255,
+            shape=(shp[:-1] + (shp[-1] * k,)),
+            dtype=env.observation_space.dtype,
         )
 
     def reset(self):

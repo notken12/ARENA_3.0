@@ -1,5 +1,5 @@
-# #!/bin/bash
-# set -e
+#!/bin/bash
+set -e
 
 # =============================================================================
 # First clone the ARENA_3.0 repo using:
@@ -8,12 +8,17 @@
 #   bash ARENA_3.0/install.sh                        # RunPod (default), with llm-context repo
 #   bash ARENA_3.0/install.sh --platform vastai      # Vast.ai platform
 #   bash ARENA_3.0/install.sh --no-llm-context       # Skip cloning arena-llm-context
+#
+# Assumes a PyTorch base image (e.g. RunPod's runpod/pytorch:*) so that torch +
+# CUDA libs are already installed in the system Python. We create a venv with
+# --system-site-packages so the env inherits that preinstalled torch (no multi-GB
+# re-download) and only the remaining ARENA deps get installed, via uv.
 # =============================================================================
 
 # Defaults
 PLATFORM="runpod"
-CONDA_ENV="arena-env"
-PYTHON_VERSION="3.11"
+ENV_NAME="arena-env"
+VENV_DIR="$HOME/$ENV_NAME"
 CLONE_LLM_CONTEXT=false
 
 # Parse args
@@ -29,28 +34,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "=== Setup: platform=$PLATFORM, clone_llm_context=$CLONE_LLM_CONTEXT ==="
-
-# --- Install Miniconda ---
-echo "=== Installing Miniconda ==="
-mkdir -p ~/miniconda3
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
-bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-rm -rf ~/miniconda3/miniconda.sh
-~/miniconda3/bin/conda init bash
-
-# Source conda.sh to get conda activate working in this script
-source ~/miniconda3/etc/profile.d/conda.sh
-
-# --- Accept conda TOS ---
-echo "=== Accepting Conda TOS ==="
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
-
-# --- Create and activate conda env ---
-echo "=== Creating conda env '$CONDA_ENV' (python $PYTHON_VERSION) ==="
-conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y
-conda activate "$CONDA_ENV"
-echo "=== Active Python: $(which python) ==="
 
 # --- Install git ---
 echo "=== Installing system packages ==="
@@ -68,18 +51,31 @@ if $CLONE_LLM_CONTEXT; then
     git clone -b "$BRANCH" "https://github.com/${REPO}.git"
 fi
 
-# # --- Git config ---
-# git config --global user.name callummcdougall
-# git config --global user.email cal.s.mcdougall@gmail.com
+# --- Create venv that inherits the base image's preinstalled torch ---
+echo "=== Creating venv '$ENV_NAME' from base Python: $(which python) ==="
+python -m venv --system-site-packages "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+echo "=== Active Python: $(which python) ==="
 
-# --- Install Python deps from primary repo ---
+# Fail fast if the base image didn't actually provide torch (wrong template)
+echo "=== Verifying inherited torch ==="
+python -c "import torch; print('Found torch', torch.__version__, 'CUDA', torch.version.cuda)" || {
+    echo "ERROR: base Python has no torch. Use a PyTorch base image, or remove --system-site-packages reliance."
+    exit 1
+}
+
+# --- Install Python deps from primary repo with uv (parallel, fast) ---
 PRIMARY_REPO_DIR="ARENA_3.0"
 echo "=== Installing Python dependencies from $PRIMARY_REPO_DIR ==="
 cd "$PRIMARY_REPO_DIR"
-pip install -U pip setuptools wheel
-pip install -r requirements.txt
-conda install -n "$CONDA_ENV" ipykernel --update-deps --force-reinstall -y
+pip install -U pip uv
+# torch/torchvision/torchaudio are already satisfied via system-site-packages and are skipped.
+uv pip install -r requirements.txt
 cd ..
+
+# --- Register Jupyter kernel for this env ---
+echo "=== Registering Jupyter kernel '$ENV_NAME' ==="
+python -m ipykernel install --user --name "$ENV_NAME" --display-name "Python ($ENV_NAME)"
 
 # --- VS Code workspace settings ---
 echo "=== Configuring VS Code workspace settings ==="
@@ -88,7 +84,7 @@ HOME_DIR="$HOME"
 mkdir -p "$HOME_DIR/.vscode"
 cat > "$HOME_DIR/.vscode/settings.json" << EOF
 {
-    "python.defaultInterpreterPath": "$HOME_DIR/miniconda3/envs/$CONDA_ENV/bin/python",
+    "python.defaultInterpreterPath": "$VENV_DIR/bin/python",
     "python.analysis.extraPaths": [
         "$HOME_DIR/$PRIMARY_REPO_DIR/chapter0_fundamentals/exercises",
         "$HOME_DIR/$PRIMARY_REPO_DIR/chapter1_transformer_interp/exercises",
@@ -99,4 +95,4 @@ cat > "$HOME_DIR/.vscode/settings.json" << EOF
 }
 EOF
 
-echo "=== Done! ==="
+echo "=== Done! Activate with: source $VENV_DIR/bin/activate ==="

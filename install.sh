@@ -35,6 +35,13 @@ done
 
 echo "=== Setup: platform=$PLATFORM, clone_llm_context=$CLONE_LLM_CONTEXT ==="
 
+# --- Prefer IPv4 ---
+# Some pods have a broken/black-holed IPv6 route, which makes pip/uv/git/apt crawl as
+# they wait on dead IPv6 connections. Make getaddrinfo hand out IPv4 first. Idempotent.
+echo "=== Preferring IPv4 for downloads ==="
+GAI_RULE='precedence ::ffff:0:0/96  100'
+grep -qxF "$GAI_RULE" /etc/gai.conf 2>/dev/null || echo "$GAI_RULE" >> /etc/gai.conf
+
 # --- Install git ---
 echo "=== Installing system packages ==="
 if [[ "$PLATFORM" == "runpod" ]]; then
@@ -57,12 +64,14 @@ python -m venv --system-site-packages "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 echo "=== Active Python: $(which python) ==="
 
-# Fail fast if the base image didn't actually provide torch (wrong template)
-echo "=== Verifying inherited torch ==="
-python -c "import torch; print('Found torch', torch.__version__, 'CUDA', torch.version.cuda)" || {
-    echo "ERROR: base Python has no torch. Use a PyTorch base image, or remove --system-site-packages reliance."
-    exit 1
-}
+# Fail fast if the base image didn't provide the full torch stack (wrong template).
+# These are inherited via --system-site-packages, so uv will skip re-downloading them.
+echo "=== Verifying inherited torch stack ==="
+python - <<'PY' || { echo "ERROR: base image is missing part of the torch stack. Use a full PyTorch base image."; exit 1; }
+import torch, torchvision, torchaudio
+print("Found torch", torch.__version__, "CUDA", torch.version.cuda)
+print("Found torchvision", torchvision.__version__, "torchaudio", torchaudio.__version__)
+PY
 
 # --- Install Python deps from primary repo with uv (parallel, fast) ---
 PRIMARY_REPO_DIR="ARENA_3.0"
@@ -70,7 +79,9 @@ echo "=== Installing Python dependencies from $PRIMARY_REPO_DIR ==="
 cd "$PRIMARY_REPO_DIR"
 pip install -U pip uv
 # torch/torchvision/torchaudio are already satisfied via system-site-packages and are skipped.
-uv pip install -r requirements.txt
+# --index-strategy unsafe-best-match: pick the best version across PyPI + the pytorch index,
+# instead of locking a package to the first index that lists it (avoids the stale `requests` pin).
+uv pip install --index-strategy unsafe-best-match -r requirements.txt
 cd ..
 
 # --- Register Jupyter kernel for this env ---

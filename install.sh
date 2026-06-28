@@ -85,17 +85,23 @@ echo "=== Creating conda env '$ENV_NAME' (python $PYTHON_VERSION) ==="
 conda create -y -n "$ENV_NAME" python="$PYTHON_VERSION"
 conda activate "$ENV_NAME"
 ENV_PYTHON="$CONDA_PREFIX/bin/python"
+# Clear any stale venv activation inherited from the parent shell, or uv/pip would target
+# it instead of this conda env (uv prioritizes VIRTUAL_ENV over the active conda env).
+unset VIRTUAL_ENV
 echo "=== Active Python: $(which python) ==="
 
 # --- Install Python deps from primary repo with uv (parallel, fast) ---
-# requirements.txt installs its own CUDA torch from the pytorch index.
+# UV_TORCH_BACKEND=auto: detect the GPU driver's CUDA version and pull a matching torch
+#   wheel, instead of letting unsafe-best-match grab the newest (cu130) build that the
+#   driver is too old to run. Non-torch packages keep the normal index config.
 # --index-strategy unsafe-best-match: pick the best version across PyPI + the pytorch
-# index, instead of locking a package to the first index that lists it (the pytorch index
-# ships a stale `requests` that otherwise makes the resolve unsatisfiable).
+#   index, instead of locking a package to the first index that lists it (the pytorch
+#   index ships a stale `requests` that otherwise makes the resolve unsatisfiable).
+# --python pins the target to this conda env explicitly, regardless of any VIRTUAL_ENV.
 echo "=== Installing Python dependencies from $PRIMARY_REPO_DIR ==="
 cd "$PRIMARY_REPO_DIR"
 pip install -U pip uv
-uv pip install --index-strategy unsafe-best-match -r requirements.txt
+UV_TORCH_BACKEND=auto uv pip install --python "$ENV_PYTHON" --index-strategy unsafe-best-match -r requirements.txt
 cd ..
 
 # --- Verify torch sees the GPU ---

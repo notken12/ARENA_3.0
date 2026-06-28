@@ -18,7 +18,11 @@ set -e
 # Defaults
 PLATFORM="runpod"
 ENV_NAME="arena-env"
-VENV_DIR="$HOME/$ENV_NAME"
+PRIMARY_REPO_DIR="ARENA_3.0"
+REPO_PATH="$HOME/$PRIMARY_REPO_DIR"
+# Put the venv at <repo>/.venv: VS Code auto-discovers, auto-selects, and auto-activates
+# a `.venv` in the workspace root, so the kernel shows up with no manual interpreter path.
+VENV_DIR="$REPO_PATH/.venv"
 CLONE_LLM_CONTEXT=false
 
 # Parse args
@@ -59,6 +63,16 @@ if $CLONE_LLM_CONTEXT; then
 fi
 
 # --- Create venv that inherits the base image's preinstalled torch ---
+# Fail fast on the wrong Python: ARENA's pinned RL stack (gymnasium[atari]==0.29.0 ->
+# ale-py 0.8.x) only has wheels up to cp311, so 3.12+ images can't resolve. Use a py3.11
+# PyTorch base image (whose torch is also built for cp311, so --system-site-packages works).
+echo "=== Verifying base Python version ==="
+python - <<'PY' || { echo "ERROR: ARENA needs Python 3.11. Recreate the pod from a py3.11 PyTorch base image."; exit 1; }
+import sys
+assert sys.version_info[:2] == (3, 11), f"found {sys.version.split()[0]}, need 3.11"
+print("Base Python", sys.version.split()[0])
+PY
+
 echo "=== Creating venv '$ENV_NAME' from base Python: $(which python) ==="
 python -m venv --system-site-packages "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
@@ -74,7 +88,6 @@ print("Found torchvision", torchvision.__version__, "torchaudio", torchaudio.__v
 PY
 
 # --- Install Python deps from primary repo with uv (parallel, fast) ---
-PRIMARY_REPO_DIR="ARENA_3.0"
 echo "=== Installing Python dependencies from $PRIMARY_REPO_DIR ==="
 cd "$PRIMARY_REPO_DIR"
 pip install -U pip uv
@@ -89,19 +102,20 @@ echo "=== Registering Jupyter kernel '$ENV_NAME' ==="
 python -m ipykernel install --user --name "$ENV_NAME" --display-name "Python ($ENV_NAME)"
 
 # --- VS Code workspace settings ---
+# Must live in the OPENED workspace folder's .vscode/, not $HOME/.vscode (which VS Code ignores).
+# Setting the interpreter to the venv makes VS Code surface it as a kernel automatically.
 echo "=== Configuring VS Code workspace settings ==="
 
-HOME_DIR="$HOME"
-mkdir -p "$HOME_DIR/.vscode"
-cat > "$HOME_DIR/.vscode/settings.json" << EOF
+mkdir -p "$REPO_PATH/.vscode"
+cat > "$REPO_PATH/.vscode/settings.json" << EOF
 {
     "python.defaultInterpreterPath": "$VENV_DIR/bin/python",
     "python.analysis.extraPaths": [
-        "$HOME_DIR/$PRIMARY_REPO_DIR/chapter0_fundamentals/exercises",
-        "$HOME_DIR/$PRIMARY_REPO_DIR/chapter1_transformer_interp/exercises",
-        "$HOME_DIR/$PRIMARY_REPO_DIR/chapter2_rl/exercises",
-        "$HOME_DIR/$PRIMARY_REPO_DIR/chapter3_llm_evals/exercises",
-        "$HOME_DIR/$PRIMARY_REPO_DIR/chapter4_alignment_science/exercises"
+        "$REPO_PATH/chapter0_fundamentals/exercises",
+        "$REPO_PATH/chapter1_transformer_interp/exercises",
+        "$REPO_PATH/chapter2_rl/exercises",
+        "$REPO_PATH/chapter3_llm_evals/exercises",
+        "$REPO_PATH/chapter4_alignment_science/exercises"
     ]
 }
 EOF

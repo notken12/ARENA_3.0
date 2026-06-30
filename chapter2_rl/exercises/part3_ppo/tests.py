@@ -77,7 +77,7 @@ def test_get_actor_and_critic(get_actor_and_critic, mode="classic-control"):
         import part3_ppo.solutions as solutions
 
         envs = gym.vector.SyncVectorEnv(
-            [make_env("Hopper-v3", i, i, False, "test-run") for i in range(4)]
+            [make_env("Hopper-v4", i, i, False, "test-run") for i in range(4)]
         )
         actor, critic = get_actor_and_critic(envs, mode="mujoco")
         actor = actor.to(device)

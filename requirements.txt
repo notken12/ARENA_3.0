@@ -79,8 +79,12 @@ mujoco
 # side (PyOpenGL, glfw) comes in as mujoco dependencies, and mp4 encoding uses imageio-ffmpeg.
 # GPU physics for the MuJoCo section (Brax `positional` backend + our torch PPO). Pinned because
 # brax only declares `jax>=0.4.6` (no upper bound), so an unpinned install grabs a newer jax whose
-# removed `device_put_replicated` breaks brax. jax 0.10.1 is the verified-working combo.
-jax[cuda12]==0.10.1
+# removed `device_put_replicated` breaks brax. Capped at 0.7.1 (not 0.10.1) because jax >= 0.7.2
+# requires numpy >= 2.0, which conflicts with circuitsvis's numpy < 2.0 cap above; 0.7.1 is the
+# newest jax that still allows numpy < 2.0 and still exports `device_put_replicated` for brax.
+# NOTE: this only resolves on Python <= 3.12 — on 3.13+, jax's ml-dtypes>=0.5.0 dep pulls
+# numpy >= 2.1.0 and the circuitsvis conflict returns. The arena-env is Python 3.11.
+jax[cuda12]==0.7.1
 brax==0.14.2
 # Vectorised Atari emulators (C++) for the Atari bonus section's AtariEnvs.
 envpool==1.2.5
